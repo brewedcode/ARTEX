@@ -60,3 +60,22 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npm run build:static
+
+  history-hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Block personal emails in new commit metadata
+        run: |
+          git fetch origin main
+          bad="$(git log origin/main..HEAD --format='%ae%n%ce' \
+            | grep -vE '^noreply@github\.com$|@users\.noreply\.github\.com$|@mistral\.ai$|@example\.com$' || true)"
+          if [ -n "$bad" ]; then
+            echo "::error::Personal email addresses in commit author/committer metadata are not allowed."
+            echo "The repository history was rewritten on 2026-10-23 to remove a personal email"
+            echo "address from commit metadata; use a noreply identity for new commits."
+            echo "$bad"
+            exit 1
+          fi

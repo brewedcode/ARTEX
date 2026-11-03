@@ -15,14 +15,16 @@ services:
     restart: unless-stopped
 
   artex:
-    # Built from this checkout. The previous reference was a third-party
-    # namespace whose repository is gone: whoever controls that name could
-    # publish the tag this file would pull.
+    # Built from this checkout, always. pull_policy: build makes compose
+    # rebuild on every `up` and never pull: the previous reference was a
+    # third-party namespace whose repository is gone, so whoever controls
+    # that name could publish the tag a pull would run.
     build:
       context: .
       args:
         ARTEX_VERSION: ${ARTEX_VERSION:-dev}
     image: artex:local
+    pull_policy: build
     depends_on:
       postgres:
         condition: service_healthy

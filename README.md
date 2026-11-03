@@ -5,7 +5,7 @@
 AI autonomous penetration testing system (Go backend + Next.js frontend)
 
 
- Fork of [ARTEX by Autumn-27](https://github.com/Autumn-27) · English translation of the Chinese source · maintained publicly under AGPL-3.0
+ Fork of [ARTEX by Autumn-27](https://github.com/Autumn-27) · English translation of the Chinese source · maintained publicly under AGPL-3.0 · [provenance & integrity notes](docs/PROVENANCE.md)
 
 </div>
 
