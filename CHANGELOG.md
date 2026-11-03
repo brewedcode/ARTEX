@@ -8,6 +8,9 @@ All notable changes to this project are documented in this file. The format is b
 
 - **The image is built from the checkout instead of pulled**: `docker-compose.yml` no longer references the `autumn27/artex` namespace, whose repository is gone and whose name its holder could republish at any time. `install.sh` and `update.sh` build the image locally.
 - **`update.sh` refuses to rebuild stale code**: when `git pull --ff-only` fails on a diverged clone (including every clone made before the 2026-10-23 history rewrite), it now stops with recovery commands instead of warning, rebuilding the old tree and printing "Build complete".
+- **The `norma` dependency comes straight from upstream**: the `replace github.com/Autumn-27/norma => github.com/BaaRai/Norma v0.4.4` directive is removed and `go.mod` requires `github.com/Autumn-27/norma v0.4.4`. Both v0.4.4 tags point to the same git object, so the compiled code is unchanged — only the source repo is.
+- **The Dockerfile pins everything it fetches**: Node.js 20.20.2 is copied from the pinned official `node:20.20.2-bookworm-slim` image via a multi-stage build (the NodeSource `curl | bash` installer is gone), `@playwright/mcp` / `@playwright/cli` / `playwright` are pinned to 1.64.1 instead of `@latest`, and sqlmap is cloned at release tag `1.10.11` instead of `master`.
+- **`docker compose` can no longer pull the artex image**: `pull_policy: build` on the artex services in both compose files forces a local rebuild on every `up`.
 
 ### Fixed
 
@@ -15,6 +18,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ### Added
 
+- **CI `history-hygiene` job**: rejects new commits whose author/committer email is a personal address, so the 2026-10-23 history-rewrite problem (a personal email in commit metadata) cannot recur.
+- **`docs/PROVENANCE.md`**: records the fork chain (`brewedcode/ARTEX` → parent `BaaRai/ARTEX` → claimed translation of the now-unavailable `Autumn-27/ARTEX`), the history rewrite and how to verify a clone, and the image/dependency integrity rules.
 - **Ollama support**: an `ollama` LLM profile format for a local or LAN Ollama server. Keyless by design: no API key is needed, `OPENAI_API_KEY` is never inherited, the base URL defaults to `http://127.0.0.1:11434/v1` and is normalized to the `/v1` root, and the profile works in the failover pool, task LLM chains, model listing and connection tests. Contributed by @glauberportella (#128).
 
 ## [0.4.0] - 2026-10-23

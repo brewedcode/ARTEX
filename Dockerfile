@@ -11,26 +11,30 @@
 #   cp -r web/out server/webui/dist
 #   CGO_ENABLED=0 GOARCH=amd64 go build -tags embedui -o dist/amd64/artex ./cmd/artex
 #   docker build -t artex:local .
+FROM node:20.20.2-bookworm-slim AS node
 FROM python:3.12-slim-bookworm
 ARG TARGETARCH
 # Common tools: ripgrep / curl / vim, plus a set of recon staples (add/remove as needed).
-# Node 20.x comes from NodeSource: bookworm's apt nodejs is 18, but Playwright requires >=20.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates ripgrep curl wget vim git jq unzip \
       dnsutils iputils-ping netcat-openbsd inetutils-telnet whois nmap \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
+# Node 20.x is copied from the pinned official node image (bookworm's apt nodejs is 18,
+# but Playwright requires >=20) instead of running a curl|bash installer script.
+COPY --from=node /usr/local/bin/node /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/
+COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN node --version && npm --version
 # Web-recon toolbox (drost-community take 1, #100): pinned release binaries installed
 # into /usr/local/bin so hunt workers can run them directly through their Bash tool.
-# Versions pinned per tool; upgrade deliberately. sqlmap is a python checkout (no
-# release binaries) symlinked into PATH.
+# Versions pinned per tool; upgrade deliberately. sqlmap is a python checkout pinned
+# to a release tag (it ships no release binaries) and symlinked into PATH.
 ARG NUCLEI_VERSION=v3.11.1
 ARG HTTPX_VERSION=v1.12.0
 ARG SUBFINDER_VERSION=v2.17.0
 ARG KATANA_VERSION=v1.8.0
 ARG FFUF_VERSION=v2.3.0
 ARG DALFOX_VERSION=v3.2.4
+ARG SQLMAP_VERSION=1.10.11
 RUN set -eux; \
     base="https://github.com"; \
     pd_fetch() { repo="$1"; ver="$2"; name="$3"; nov="${ver#v}"; \
@@ -50,7 +54,7 @@ RUN set -eux; \
       && rm -rf /tmp/t.tgz /tmp/td; }; \
     tar_fetch "$base/ffuf/ffuf/releases/download/$FFUF_VERSION/ffuf_${FFUF_VERSION#v}_linux_${FFUF_ARCH}.tar.gz" ffuf; \
     tar_fetch "$base/hahwul/dalfox/releases/download/$DALFOX_VERSION/dalfox-${DALFOX_VERSION}-linux-${DALFOX_ARCH}-musl.tar.gz" dalfox; \
-    git clone --depth 1 https://github.com/sqlmapproject/sqlmap /opt/sqlmap; \
+    git clone --depth 1 --branch ${SQLMAP_VERSION} https://github.com/sqlmapproject/sqlmap /opt/sqlmap; \
     ln -s /opt/sqlmap/sqlmap.py /usr/local/bin/sqlmap; \
     nuclei -version >/dev/null; httpx -version; subfinder -version; katana -version; \
     ffuf -V >/dev/null; dalfox --version >/dev/null 2>&1 || true; sqlmap --version >/dev/null
@@ -72,13 +76,15 @@ RUN set -eux; \
     ! grep -qE "Installing|ERRR|CRITICAL" /tmp/bbot-dry.log || { cat /tmp/bbot-dry.log; exit 1; }
 
 
-# Preinstall Playwright MCP and CLI (globally) so no npx network download is needed at runtime.
-# @playwright/mcp: browser MCP runs directly via `npx @playwright/mcp` (installed globally, no -y/@latest needed).
+# Preinstall Playwright MCP and CLI (globally) at a pinned version, so no npx network
+# download is needed at runtime and no mutable @latest tag is ever resolved.
+# @playwright/mcp: browser MCP runs directly via `npx @playwright/mcp`.
 # @playwright/cli: provides playwright-cli, verified with --help right after install.
 # Then install playwright (browser management) and preinstall chromium plus its system
 # dependencies via --with-deps, so MCP/CLI work on first start inside the container
 # without downloading browsers over the network.
-RUN npm install -g @playwright/mcp@latest @playwright/cli@latest playwright@latest \
+ARG PLAYWRIGHT_VERSION=1.64.1
+RUN npm install -g @playwright/mcp@${PLAYWRIGHT_VERSION} @playwright/cli@${PLAYWRIGHT_VERSION} playwright@${PLAYWRIGHT_VERSION} \
     && playwright-cli --help \
     && playwright install --with-deps chromium \
     && rm -rf /var/lib/apt/lists/*
